@@ -25,20 +25,21 @@ jobs:
           npm install
           npm run build
 
+      # 用 scp-action 替换原来的 ssh-deploy，兼容性更好
       - name: Upload dist to Server
-        uses: easingthemes/ssh-deploy@main
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
-          ARGS: "-rltgoDzvO --delete"
-          SOURCE: "dist/"
-          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
-          REMOTE_USER: root
-          TARGET: /root/vue-dist
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "dist/*"
+          target: /root/vue-dist
+          strip_components: 1
 
       - name: Deploy via Docker
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.SERVER_HOST }}
+          host: ${{ secrets.REMOTE_HOST }}
           username: root
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
