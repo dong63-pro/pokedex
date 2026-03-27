@@ -1,51 +1,52 @@
-name: 宝可梦图鉴自动化部署
+name: Deploy Vue to Lighthouse
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
 
-      - name: 设置 Node.js
-        uses: actions/setup-node@v4
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: 安装依赖
-        run: npm ci
+      - name: Install & Build
+        run: |
+          npm config set registry https://registry.npmmirror.com
+          npm install
+          npm run build
 
-      - name: 构建项目
-        run: npm run build
+      - name: Upload dist to Server
+        uses: easingthemes/ssh-deploy@main
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          ARGS: "-rltgoDzvO --delete"
+          SOURCE: "dist/"
+          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
+          REMOTE_USER: root
+          TARGET: /root/vue-dist
 
-      - name: 上传文件到服务器
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          source: "dist/,Dockerfile"
-          target: "/root/pokedex-deploy"
-          timeout: 180s
-
-      - name: 部署并启动 Docker
+      - name: Deploy via Docker
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          timeout: 300s
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /root/pokedex-deploy
-            docker rm -f pokedex 2>/dev/null || true
-            docker build -t pokedex:latest .
-            docker run -d -p 80:80 --name pokedex --restart unless-stopped pokedex:latest
-            sleep 2
-            docker ps | grep pokedex
+            docker stop vue-app || true
+            docker rm vue-app || true
+            docker run -d \
+              --name vue-app \
+              --restart always \
+              -p 80:80 \
+              -v /root/vue-dist:/usr/share/nginx/html \
+              nginx:alpine
