@@ -22,8 +22,9 @@ jobs:
       - name: Install & Build
         run: |
           npm config set registry https://registry.npmmirror.com
-          npm install
-          npm run build
+          npm install -g pnpm 
+          pnpm install
+          pnpm run build
 
       # 用 scp-action 替换原来的 ssh-deploy，兼容性更好
       - name: Upload dist to Server
