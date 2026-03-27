@@ -13,7 +13,7 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 设置 Node.js 环境
+      - name: 设置 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -25,25 +25,27 @@ jobs:
       - name: 构建项目
         run: npm run build
 
-      - name: 打包构建产物
-        run: tar -czf deploy.tar.gz dist/ Dockerfile deploy.sh
-
-      - name: 部署到服务器
-        uses: appleboy/scp-action@v0.1.4
+      - name: 上传文件到服务器
+        uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
-          source: "deploy.tar.gz"
+          source: "dist/,Dockerfile"
           target: "/root/pokedex-deploy"
+          timeout: 180s
 
-      - name: 执行部署脚本
-        uses: appleboy/ssh-action@v1.0.3
+      - name: 部署并启动 Docker
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
+          timeout: 300s
           script: |
             cd /root/pokedex-deploy
-            chmod +x deploy.sh
-            ./deploy.sh
+            docker rm -f pokedex 2>/dev/null || true
+            docker build -t pokedex:latest .
+            docker run -d -p 80:80 --name pokedex --restart unless-stopped pokedex:latest
+            sleep 2
+            docker ps | grep pokedex
